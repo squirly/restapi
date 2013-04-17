@@ -1,13 +1,8 @@
 from functools import wraps
-from dateutil import parser
-import time
 from inspect import getmembers
 
-
-class UNSET(object):
-    __repr__ = lambda x: 'UNSET'
-    __nonzero__ = lambda x: False
-UNSET = UNSET()
+from restapi.fields import UNSET, Field
+from restapi.errors import ValidationError, ValidationErrors
 
 
 class ResponseHook(object):
@@ -55,48 +50,6 @@ class ResponseHook(object):
             'request': request,
             'response': response
         })
-
-
-class ValidationError(Exception):
-    def __init__(self, message='', obj=None, attribute=None):
-        self.message = message
-        self.obj = obj
-        self.attribute = attribute
-
-    def get_class(self):
-        return self.error.obj.__class__.__name__ if self.error.obj else None
-
-    def __str__(self, show_object=True):
-        message = ''
-        if show_object and self.obj:
-            message += self.obj.__class__.__name__ + ': '
-        if self.attribute:
-            message += self.attribute + ' '
-        message += self.message
-        return message
-
-
-class ValidationErrors(Exception):
-    def __init__(self, errors):
-        if len(errors) == 0:
-            raise ValueError('Errors cannot be empty')
-        self.errors = errors
-
-    def error_dict(self):
-        messages = {}
-        for error in self.errors:
-            obj = error.obj.__class__.__name__ if hasattr(error, 'obj') else ''
-            value = messages.get(obj, [])
-            value.append(error.__str__(show_object=False))
-            messages[obj] = value
-        return messages
-
-    def __str__(self, *a, **k):
-        messages = self.error_dict()
-        final_message = messages.pop('', [])
-        for obj, message in messages.items():
-            final_message.append(obj + ': ' + ', '.join(message))
-        return '. '.join(final_message)
 
 
 class ApiObjectMeta(object):
@@ -188,103 +141,3 @@ class ApiObject(object):
 
     def __repr__(self, *args, **kwargs):
         return self.__class__.__name__ + ':' + str(self.get_dict())
-
-
-class Field(object):
-    type = None
-    default = UNSET
-
-    def __init__(self, value_type=None, required=True, null=False, **kwargs):
-        if value_type is not None:
-            self.type = value_type
-        if 'default' in kwargs:
-            self.default = kwargs['default']
-        self.required = required
-        self.null = null
-
-    def hydrate(self, value):
-        if value is None:
-            return None
-        return self.type(value)
-
-    def dehydrate(self, value):
-        return value
-
-    def validate(self, value, obj):
-        if not isinstance(value, self.type):
-            type_name = self.type.__name__
-            ValidationError('value not of type ' + type_name)
-
-
-class StringField(Field):
-    type = unicode
-
-
-class IntegerField(Field):
-    type = int
-
-
-class FloatField(Field):
-    type = float
-
-
-class BooleanField(Field):
-    type = bool
-
-
-class ListField(Field):
-    type = list
-    default = []
-
-
-class DictionaryField(Field):
-    type = dict
-    default = UNSET
-
-
-class ResourceField(Field):
-    @property
-    def default(self):
-        return self.type()
-
-    def hydrate(self, value):
-        if isinstance(value, self.type):
-            return value
-        return self.type(**value)
-
-    def dehydrate(self, value):
-        return value.get_dict()
-
-    def validate(self, value):
-        super(ResourceField, self).validate(value)
-        value.validate()
-
-
-class ResourceListField(ResourceField):
-    default = []
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def hydrate(self, value):
-        return map(super(ResourceListField, self).hydrate, value)
-
-    def dehydrate(self, value):
-        return map(super(ResourceListField, self).dehydrate, value)
-
-    def validate(self, value):
-        return map(super(ResourceListField, self).validate, value)
-
-
-class DateTimeField(Field):
-    def __init__(self, datetime_format=None, *args, **kwargs):
-        self.datetime_format = datetime_format
-        super(DateTimeField, self).__init__(*args, **kwargs)
-
-    def hydrate(self, value):
-        return parser.parse(value)
-
-    def dehydrate(self, value):
-        return value.strftime(self.datetime_format) \
-            if self.datetime_format \
-            else time.mktime(value.timetuple())

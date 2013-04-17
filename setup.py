@@ -9,4 +9,5 @@ setup(
     author_email='tyler@squirly.ca',
     description='A library for creating and consuming RESTful API\'s.',
     packages=['restapi', ],
+    install_requires=['python-dateutil', ]
 )
