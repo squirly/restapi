@@ -53,12 +53,18 @@ class BooleanField(Field):
 
 class ListField(Field):
     type = list
-    default = []
+
+    @property
+    def default(self):
+        return []
 
 
 class DictionaryField(Field):
     type = dict
-    default = UNSET
+
+    @property
+    def default(self):
+        return {}
 
 
 class ResourceField(Field):
@@ -80,7 +86,9 @@ class ResourceField(Field):
 
 
 class ResourceListField(ResourceField):
-    default = []
+    @property
+    def default(self):
+        return []
 
     def __init__(self, *args, **kwargs):
         pass
